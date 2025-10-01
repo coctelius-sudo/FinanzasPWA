@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>Finanzas PWA</title>
+
+  <!-- Tailwind CDN (rápido para prototipo) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- SheetJS for Excel export -->
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
+  <!-- Manifest -->
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- Icons for iOS -->
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+  <!-- Styles (add ?v to bust cache when needed) -->
+  <link rel="stylesheet" href="style.css?v=1.0.1">
+
+</head>
+<body class="h-full bg-slate-900 text-slate-100 antialiased">
+
+  <div id="app" class="max-w-xl mx-auto p-4 pb-24">
+
+    <!-- Header -->
+    <header class="flex items-center justify-between mb-4">
+      <h1 class="text-2xl font-semibold">Mi Finanzas</h1>
+      <div class="flex gap-2 items-center">
+        <button id="btn-export" class="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700">Exportar CSV</button>
+        <button id="btn-export-xlsx" class="px-3 py-1 rounded bg-amber-500 text-slate-900">Exportar Excel</button>
+        <button id="btn-install" class="px-3 py-1 rounded bg-emerald-500 text-slate-900 hidden">Instalar</button>
+      </div>
+    </header>
+
+    <!-- Dashboard Card -->
+    <section class="bg-slate-800 rounded-xl p-4 mb-4 shadow">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <div class="text-sm text-slate-400">Saldo disponible</div>
+          <div id="saldo" class="text-2xl font-bold">$0.00</div>
+        </div>
+        <div class="text-right">
+          <div class="text-sm text-slate-400">Presupuesto mensual</div>
+          <div id="presupuesto-display" class="text-lg">$0.00</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="text-center p-2 bg-slate-900 rounded">
+          <div class="text-xs text-slate-400">Ingresos</div>
+          <div id="total-ingresos" class="font-semibold">$0.00</div>
+        </div>
+        <div class="text-center p-2 bg-slate-900 rounded">
+          <div class="text-xs text-slate-400">Gastos</div>
+          <div id="total-gastos" class="font-semibold">$0.00</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Charts -->
+    <section class="grid grid-cols-1 gap-4 mb-4">
+      <div class="bg-slate-800 rounded-xl p-3">
+        <div class="text-sm text-slate-400 mb-2">Gastos por categoría</div>
+        <canvas id="chart-categories" height="220"></canvas>
+      </div>
+      <div class="bg-slate-800 rounded-xl p-3">
+        <div class="text-sm text-slate-400 mb-2">Evolución mensual</div>
+        <canvas id="chart-evolution" height="220"></canvas>
+      </div>
+    </section>
+
+    <!-- Movimientos + Add -->
+    <section class="mb-20">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold">Movimientos</h2>
+        <div class="text-sm text-slate-400" id="movimiento-count">0</div>
+      </div>
+
+      <div id="movimientos-list" class="space-y-2 mb-3 max-h-72 overflow-auto"></div>
+
+      <div class="fixed left-1/2 transform -translate-x-1/2 bottom-6 w-full max-w-xl px-4">
+        <div class="bg-gradient-to-r from-slate-800 to-slate-900 p-3 rounded-2xl shadow-md flex items-center gap-3">
+          <button id="btn-add" class="flex-1 py-2 rounded bg-emerald-500 text-slate-900 font-semibold">+ Agregar movimiento</button>
+          <button id="btn-config" class="px-3 py-2 rounded bg-slate-700">Config</button>
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <!-- Modal: Add / Edit -->
+  <div id="modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4">
+    <div class="bg-slate-900 w-full max-w-md rounded-xl p-4">
+      <h3 id="modal-title" class="text-lg font-semibold mb-2">Agregar movimiento</h3>
+
+      <form id="form-mov" class="space-y-3">
+        <input type="hidden" id="editingId" value="" />
+        <div class="flex gap-2">
+          <select id="tipo" class="flex-1 p-2 rounded bg-slate-800">
+            <option value="gasto">Gasto</option>
+            <option value="ingreso">Ingreso</option>
+          </select>
+          <input id="monto" type="number" step="0.01" placeholder="0.00" class="w-32 p-2 rounded bg-slate-800" required />
+        </div>
+
+        <input id="descripcion" type="text" placeholder="Descripción (ej. supermercado)" class="w-full p-2 rounded bg-slate-800" />
+
+        <div class="flex gap-2">
+          <select id="categoria" class="flex-1 p-2 rounded bg-slate-800"></select>
+          <select id="cuenta" class="w-40 p-2 rounded bg-slate-800"></select>
+        </div>
+
+        <div class="flex gap-2">
+          <input id="fecha" type="date" class="flex-1 p-2 rounded bg-slate-800" />
+        </div>
+
+        <div class="flex justify-between items-center mt-2">
+          <div class="text-sm text-slate-400">Recordatorio</div>
+          <input id="reminder-due" type="datetime-local" class="p-2 rounded bg-slate-800 text-slate-100" />
+        </div>
+
+        <div class="flex gap-2 mt-3">
+          <button type="submit" class="flex-1 py-2 rounded bg-emerald-500 text-slate-900 font-semibold">Guardar</button>
+          <button type="button" id="btn-delete" class="flex-1 py-2 rounded bg-rose-600 hidden">Eliminar</button>
+          <button type="button" id="modal-close" class="flex-1 py-2 rounded bg-slate-700">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Config -->
+  <div id="modal-config" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4">
+    <div class="bg-slate-900 w-full max-w-2xl rounded-xl p-4">
+      <h3 class="text-lg font-semibold mb-2">Configuración</h3>
+
+      <div class="grid grid-cols-2 gap-4">
+        <!-- Presupuesto / Cuentas / Categorías -->
+        <div class="space-y-3">
+          <div class="bg-slate-800 p-3 rounded">
+            <div class="text-sm text-slate-400">Ingresos mensuales</div>
+            <input id="input-income" type="number" step="0.01" class="w-full mt-2 p-2 rounded bg-slate-900" />
+          </div>
+
+          <div class="bg-slate-800 p-3 rounded">
+            <div class="text-sm text-slate-400 mb-2">Cuentas</div>
+            <div id="accounts-list" class="space-y-2 mb-2"></div>
+            <div class="flex gap-2">
+              <input id="new-account-name" placeholder="Nombre cuenta" class="flex-1 p-2 rounded bg-slate-900" />
+              <button id="btn-add-account" class="px-3 rounded bg-emerald-500 text-slate-900">Añadir</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div class="bg-slate-800 p-3 rounded">
+            <div class="text-sm text-slate-400 mb-2">Categorías</div>
+            <div id="categories-list" class="space-y-2 mb-2"></div>
+            <div class="flex gap-2">
+              <input id="new-category-name" placeholder="Nombre categoría" class="flex-1 p-2 rounded bg-slate-900" />
+              <button id="btn-add-category" class="px-3 rounded bg-emerald-500 text-slate-900">Añadir</button>
+            </div>
+          </div>
+
+          <div class="bg-slate-800 p-3 rounded">
+            <div class="text-sm text-slate-400 mb-2">Backups automáticos</div>
+            <div class="text-xs text-slate-400 mb-2">La app guarda snapshots periódicos localmente. También puedes descargar o restaurar manualmente.</div>
+            <div id="backups-list" class="space-y-2 max-h-36 overflow-auto mb-2"></div>
+            <div class="flex gap-2">
+              <button id="btn-download-all-backups" class="px-3 py-2 rounded bg-slate-700">Descargar todos</button>
+              <input id="import-file" type="file" accept=".json" class="text-xs"/>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-4">
+        <button id="btn-clear-data" class="px-3 py-2 rounded bg-red-600">Borrar todo</button>
+        <button id="btn-close-config" class="px-3 py-2 rounded bg-slate-700">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts (add ?v to bust cache) -->
+  <script src="app.js?v=1.0.1"></script>
+
+  <!-- Register service worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js').catch(err => console.warn('SW failed', err));
+    }
+
+    // Prompt install flow
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      document.getElementById('btn-install').classList.remove('hidden');
+      document.getElementById('btn-install').onclick = async () => {
+        deferredPrompt.prompt();
+        const choice = await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        document.getElementById('btn-install').classList.add('hidden');
+      };
+    });
+  </script>
+
+</body>
+</html>

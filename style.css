@@ -1,0 +1,4 @@
+/* style.css - ajustes simples adicionales */
+html,body { height:100%; }
+::-webkit-scrollbar { height:8px; width:8px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius:8px; }
